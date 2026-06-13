@@ -252,7 +252,9 @@ function onPress(e){
   jump();
 }
 cv.addEventListener('pointerdown', onPress, {passive:false});
-document.getElementById('wrap').addEventListener('touchstart', function(e){ if(e.cancelable)e.preventDefault(); }, {passive:false});
+// NOTE: 以前ここで #wrap の touchstart を preventDefault していたが、それだとスマホで
+// スタートボタンの click が発火せず押せなくなる。スクロール抑止は body/canvas の
+// touch-action:none で足りるので、この行は削除した。
 
 window.addEventListener('keydown', function(e){
   if(e.code==='Space' || e.key===' ' || e.code==='ArrowUp'){
