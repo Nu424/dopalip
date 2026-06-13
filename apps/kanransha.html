@@ -453,14 +453,14 @@ function updateHud(){
 function update(dt){
   if(state!=='play') return;
   elapsed += dt;
-  // escalate base speed smoothly
-  baseSpin = 0.85 + Math.min(elapsed*0.012, 0.85);
+  // escalate base speed smoothly（時間経過でしっかり速く・スリルが上がる）
+  baseSpin = 0.85 + Math.min(elapsed*0.025, 1.7);
   spin += (baseSpin - spin)*Math.min(dt*3,1);
   angle += dir*spin*dt;
 
-  // spawn pacing
+  // spawn pacing（密度も時間でやや詰める）
   spawnTimer -= dt;
-  var interval = Math.max(0.55, 1.5 - elapsed*0.012);
+  var interval = Math.max(0.45, 1.5 - elapsed*0.02);
   if(spawnTimer<=0 && items.filter(function(x){return !x.collected;}).length < 10){
     spawnItem();
     spawnTimer = interval*(0.7+Math.random()*0.6);
