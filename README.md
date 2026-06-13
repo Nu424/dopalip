@@ -8,10 +8,6 @@ TikTok / YouTube Shorts 風のフリップUIで、ペライチ HTML アプリ（
 index.html      フリップUI本体（お品書きを menu.json から読み込む）
 menu.json       お品書き（表示するアプリの一覧・説明）
 apps/           iframe で表示するペライチ HTML 群
-  tameru.html     ためる   — チャージ＆リリース
-  tomeru.html     とめる   — タイミング（光を止める）
-  tsumu.html      つむ     — ブロックスタッカー
-  yokeru.html     よける   — ワンボタン回避
 .nojekyll       GitHub Pages の Jekyll 処理を無効化
 ```
 
