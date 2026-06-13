@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>とめる</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16131f; --ink2:#1f1b2e; --line:#322c45;
+    --cool:#39d6c4; --gold:#ffd166; --hot:#ff5e5b;
+    --text:#f2ece4; --muted:#8b86a0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    min-height:100dvh;
+    background:radial-gradient(120% 80% at 50% -10%, #241f38 0%, var(--ink) 55%);
+    color:var(--text);
+    font-family:"Space Grotesk", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    overflow:hidden;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .jp{font-family:system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;}
+  #wrap{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    touch-action:none;
+  }
+  canvas#fx{
+    position:fixed; inset:0;
+    width:100%; height:100%;
+    pointer-events:none;
+    z-index:30;
+  }
+
+  /* Top HUD */
+  #hud{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    padding:16px 18px 0; z-index:5; position:relative;
+    font-variant-numeric:tabular-nums;
+  }
+  #hud .col{display:flex; flex-direction:column; gap:2px;}
+  #hud .col.right{align-items:flex-end;}
+  .lbl{font-size:11px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase;}
+  #scoreVal{font-size:30px; font-weight:700; line-height:1; transition:transform .08s;}
+  #roundVal{font-size:20px; font-weight:500; line-height:1;}
+  #comboBox{
+    text-align:right; opacity:0; transition:opacity .2s;
+  }
+  #comboBox.on{opacity:1;}
+  #comboVal{font-size:26px; font-weight:700; color:var(--gold); line-height:1; display:inline-block;}
+
+  /* Mute */
+  #mute{
+    position:fixed; top:14px; right:50%; transform:translateX(50%);
+    width:36px; height:36px; border-radius:50%;
+    background:rgba(31,27,46,.7); border:1px solid var(--line);
+    color:var(--text); font-size:16px; cursor:pointer; z-index:40;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .1s, background .15s;
+  }
+  #mute:active{transform:translateX(50%) scale(.9);}
+  #mute.muted{color:var(--muted);}
+  #mute:focus-visible{outline:2px solid var(--cool); outline-offset:2px;}
+
+  /* Play area */
+  #play{
+    flex:1; position:relative;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:5;
+  }
+
+  /* The bar */
+  #barWrap{
+    width:78%; max-width:420px; position:relative;
+  }
+  #bar{
+    position:relative;
+    height:30px;
+    border-radius:16px;
+    background:linear-gradient(180deg, #14111d, #211c30);
+    border:1px solid var(--line);
+    overflow:hidden;
+    box-shadow:inset 0 1px 4px rgba(0,0,0,.5);
+  }
+  #zone{
+    position:absolute; top:0; bottom:0;
+    background:linear-gradient(180deg, rgba(255,209,102,.35), rgba(255,209,102,.15));
+    border-left:1px solid rgba(255,209,102,.6);
+    border-right:1px solid rgba(255,209,102,.6);
+    box-shadow:0 0 16px rgba(255,209,102,.35) inset;
+  }
+  #bull{
+    position:absolute; top:-3px; bottom:-3px; width:2px;
+    background:var(--gold);
+    box-shadow:0 0 10px var(--gold);
+    transform:translateX(-1px);
+  }
+  #marker{
+    position:absolute; top:-7px; bottom:-7px; width:5px;
+    border-radius:3px;
+    background:var(--cool);
+    box-shadow:0 0 14px var(--cool), 0 0 4px #fff;
+    transform:translateX(-2.5px);
+    will-change:left;
+  }
+  /* end ticks */
+  .endcap{position:absolute; top:-7px; bottom:-7px; width:2px; background:var(--line);}
+  .endcap.l{left:0;} .endcap.r{right:0;}
+
+  #reaction{
+    margin-top:30px; height:54px;
+    font-size:34px; font-weight:700; letter-spacing:.02em;
+    opacity:0; transform:scale(.6);
+    text-align:center;
+  }
+  #subreaction{
+    height:20px; margin-top:2px;
+    font-size:14px; color:var(--muted);
+  }
+
+  #prompt{
+    margin-top:6px; height:26px;
+    font-size:15px; color:var(--muted);
+    letter-spacing:.04em;
+  }
+  #prompt.beat{color:var(--cool); animation:beat 1s ease-in-out infinite;}
+  @keyframes beat{0%,100%{opacity:.5;}50%{opacity:1;}}
+
+  /* round dots */
+  #dots{display:flex; gap:6px; margin-top:18px;}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--line); transition:background .2s, transform .2s;}
+  .dot.done{background:var(--cool);}
+  .dot.perfect{background:var(--gold); box-shadow:0 0 8px var(--gold);}
+  .dot.miss{background:var(--hot);}
+  .dot.cur{transform:scale(1.5);}
+  .dot.bonus{outline:2px solid var(--gold); outline-offset:1px;}
+
+  /* Overlays */
+  .overlay{
+    position:fixed; inset:0; z-index:20;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:28px;
+    background:radial-gradient(120% 80% at 50% -10%, rgba(36,31,56,.7) 0%, rgba(22,19,31,.92) 60%);
+    backdrop-filter:blur(2px);
+  }
+  .overlay.hidden{display:none;}
+  #title{
+    font-size:72px; font-weight:700; letter-spacing:.04em; line-height:.9;
+    margin:0;
+    background:linear-gradient(180deg, var(--text), var(--cool));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 2px 18px rgba(57,214,196,.3));
+  }
+  #titleSub{font-size:15px; color:var(--gold); letter-spacing:.3em; margin-top:8px;}
+  .rules{
+    margin-top:26px; color:var(--muted); font-size:14px; line-height:1.9;
+  }
+  .rules b{color:var(--text); font-weight:500;}
+  .rules .key{color:var(--cool);}
+  .btn{
+    margin-top:30px;
+    padding:16px 42px;
+    border-radius:40px;
+    border:none;
+    background:linear-gradient(180deg, var(--cool), #2bb6a6);
+    color:#06201d; font-weight:700; font-size:18px; letter-spacing:.05em;
+    cursor:pointer;
+    box-shadow:0 8px 24px rgba(57,214,196,.35);
+    transition:transform .1s, box-shadow .15s;
+    font-family:"Space Grotesk", system-ui, sans-serif;
+  }
+  .btn:active{transform:scale(.94);}
+  .btn:focus-visible{outline:3px solid var(--gold); outline-offset:3px;}
+  .btn .jp{font-family:system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;}
+
+  /* End screen */
+  #grade{
+    font-size:96px; font-weight:700; line-height:.8; margin:0;
+    filter:drop-shadow(0 4px 24px rgba(255,209,102,.4));
+  }
+  #endLine{font-size:16px; color:var(--text); margin-top:14px;}
+  #stats{
+    margin-top:24px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+    width:100%; max-width:340px;
+  }
+  .stat{
+    background:rgba(31,27,46,.6); border:1px solid var(--line);
+    border-radius:14px; padding:12px 8px;
+  }
+  .stat .v{font-size:24px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums;}
+  .stat .k{font-size:10px; color:var(--muted); letter-spacing:.1em; margin-top:5px; text-transform:uppercase;}
+  #bestRow{margin-top:16px; font-size:13px; color:var(--muted);}
+  #bestRow b{color:var(--gold);}
+</style>
+</head>
+<body>
+<div id="wrap" aria-hidden="false">
+  <div id="hud">
+    <div class="col">
+      <span class="lbl">Score</span>
+      <span id="scoreVal">0</span>
+    </div>
+    <div class="col right">
+      <div id="comboBox"><span class="lbl">Combo</span><br><span id="comboVal">x1</span></div>
+    </div>
+  </div>
+
+  <div id="play">
+    <div id="barWrap">
+      <div id="bar">
+        <div class="endcap l"></div>
+        <div class="endcap r"></div>
+        <div id="zone"></div>
+        <div id="bull"></div>
+        <div id="marker"></div>
+      </div>
+    </div>
+    <div id="reaction"></div>
+    <div id="subreaction"></div>
+    <div id="prompt" class="jp"></div>
+    <div id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+
+<button id="mute" aria-label="サウンド切り替え" title="サウンド">&#9834;</button>
+
+<!-- Start overlay -->
+<div class="overlay" id="startScreen" role="dialog" aria-label="スタート">
+  <h1 id="title">とめる</h1>
+  <div id="titleSub">S T O P</div>
+  <div class="rules jp">
+    <div>動く<span class="key">●</span>を <b>タップ / Space</b> で止める</div>
+    <div>金の帯のド真ん中で <b>PERFECT</b></div>
+    <div>連続成功でコンボ倍率がのびる</div>
+  </div>
+  <button class="btn" id="startBtn"><span class="jp">はじめる</span></button>
+</div>
+
+<!-- End overlay -->
+<div class="overlay hidden" id="endScreen" role="dialog" aria-label="リザルト">
+  <h1 id="grade">S</h1>
+  <div id="endLine" class="jp"></div>
+  <div id="stats">
+    <div class="stat"><div class="v" id="finalScore">0</div><div class="k">Score</div></div>
+    <div class="stat"><div class="v" id="bestCombo">x1</div><div class="k">Best Combo</div></div>
+    <div class="stat"><div class="v" id="accuracy">0%</div><div class="k">Accuracy</div></div>
+  </div>
+  <div id="bestRow" class="jp">自己ベスト <b id="hiVal">0</b></div>
+  <button class="btn" id="againBtn"><span class="jp">もう一回</span></button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Elements ----------
+  var bar = document.getElementById('bar');
+  var barWrap = document.getElementById('barWrap');
+  var zone = document.getElementById('zone');
+  var bull = document.getElementById('bull');
+  var marker = document.getElementById('marker');
+  var reaction = document.getElementById('reaction');
+  var subreaction = document.getElementById('subreaction');
+  var promptEl = document.getElementById('prompt');
+  var dotsEl = document.getElementById('dots');
+  var scoreVal = document.getElementById('scoreVal');
+  var comboBox = document.getElementById('comboBox');
+  var comboVal = document.getElementById('comboVal');
+  var startScreen = document.getElementById('startScreen');
+  var endScreen = document.getElementById('endScreen');
+  var startBtn = document.getElementById('startBtn');
+  var againBtn = document.getElementById('againBtn');
+  var muteBtn = document.getElementById('mute');
+  var fx = document.getElementById('fx');
+  var ctx = fx.getContext('2d');
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Constants ----------
+  var TOTAL_ROUNDS = 10;
+
+  // ---------- State ----------
+  var state = 'start'; // start | beat | sweep | resolve | end
+  var round = 0;
+  var score = 0;
+  var displayScore = 0;
+  var combo = 0;
+  var bestCombo = 0;
+  var hi = 0;
+  var hits = 0;            // successful stops (in zone)
+  var accSum = 0;          // accuracy accumulation (0..1 per round attempt)
+  var attempts = 0;
+
+  // sweep params
+  var sweepPos = 0;        // 0..1 position
+  var sweepDir = 1;
+  var sweepSpeed = 0;      // units per second (in 0..1 space)
+  var zoneCenter = 0.5;
+  var zoneHalf = 0.12;     // half width in 0..1
+  var jitterAmp = 0;       // bonus round jitter
+  var jitterPhase = 0;
+  var isBonus = false;
+  var lastT = 0;
+  var rafId = null;
+
+  // ---------- High score (memory; try localStorage best-effort) ----------
+  try{
+    var s = localStorage.getItem('tomeru_hi');
+    if(s) hi = parseInt(s,10)||0;
+  }catch(e){}
+
+  function saveHi(){
+    try{ localStorage.setItem('tomeru_hi', String(hi)); }catch(e){}
+  }
+
+  // ---------- Audio ----------
+  var actx = null, master = null, muted = false;
+  function initAudio(){
+    if(actx) { if(actx.state==='suspended'){ try{actx.resume();}catch(e){} } return; }
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      actx = new AC();
+      master = actx.createGain();
+      master.gain.value = muted ? 0 : 0.9;
+      master.connect(actx.destination);
+    }catch(e){ actx = null; }
+  }
+  function now(){ return actx ? actx.currentTime : 0; }
+  function tone(freq, t, dur, type, vol, slideTo){
+    if(!actx||muted) return;
+    try{
+      var o = actx.createOscillator();
+      var g = actx.createGain();
+      o.type = type||'sine';
+      o.frequency.setValueAtTime(freq, t);
+      if(slideTo){ o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo), t+dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol||0.3, t+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t+dur+0.02);
+    }catch(e){}
+  }
+  function noiseBurst(t, dur, cutoff, vol){
+    if(!actx||muted) return;
+    try{
+      var n = Math.floor(actx.sampleRate*dur);
+      var buf = actx.createBuffer(1,n,actx.sampleRate);
+      var d = buf.getChannelData(0);
+      for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+      var src = actx.createBufferSource(); src.buffer=buf;
+      var f = actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=cutoff||800;
+      var g = actx.createGain(); g.gain.value=vol||0.3;
+      src.connect(f); f.connect(g); g.connect(master);
+      src.start(t);
+    }catch(e){}
+  }
+  function sndHit(quality){
+    initAudio(); if(!actx) return;
+    var t = now();
+    // chord blip; brighter as quality rises
+    var base = 440 + quality*220;
+    tone(base, t, 0.14, 'triangle', 0.25);
+    tone(base*1.5, t+0.01, 0.12, 'sine', 0.18);
+  }
+  function sndPerfect(){
+    initAudio(); if(!actx) return;
+    var t = now();
+    var notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+    for(var i=0;i<notes.length;i++){
+      tone(notes[i], t+i*0.05, 0.22, 'triangle', 0.22);
+    }
+    tone(2093, t+notes.length*0.05, 0.3, 'sine', 0.12);
+  }
+  function sndMiss(){
+    initAudio(); if(!actx) return;
+    var t = now();
+    noiseBurst(t, 0.18, 600, 0.25);
+    tone(330, t, 0.3, 'sawtooth', 0.18, 90);
+  }
+  function sndTick(){
+    initAudio(); if(!actx) return;
+    tone(880, now(), 0.05, 'sine', 0.08);
+  }
+  function sndCombo(level){
+    initAudio(); if(!actx) return;
+    tone(660 + level*90, now(), 0.12, 'square', 0.12);
+  }
+
+  muteBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    muted = !muted;
+    muteBtn.classList.toggle('muted', muted);
+    muteBtn.innerHTML = muted ? '&#128263;' : '&#9834;';
+    if(master) master.gain.value = muted ? 0 : 0.9;
+    initAudio();
+  });
+
+  // ---------- Canvas / particles ----------
+  var DPR = Math.min(window.devicePixelRatio||1, 2);
+  function resize(){
+    fx.width = Math.floor(window.innerWidth*DPR);
+    fx.height = Math.floor(window.innerHeight*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  var particles = [];
+  var rings = [];
+  var floaters = [];
+  var shake = 0;
+
+  function addBurst(x,y,color,count,spread,life){
+    if(reduceMotion) count = Math.min(count, 8);
+    for(var i=0;i<count;i++){
+      var a = Math.random()*Math.PI*2;
+      var sp = (Math.random()*spread)+spread*0.2;
+      particles.push({
+        x:x, y:y,
+        vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 0.4,
+        life:life||1, age:0,
+        size:Math.random()*3+1.5,
+        color:color,
+        g:0.06,
+        star: Math.random()<0.15
+      });
+    }
+  }
+  function addRing(x,y,color,max,w){
+    rings.push({x:x,y:y,r:6,max:max||80,life:1,age:0,color:color,w:w||3});
+  }
+  function addFloater(x,y,text,color,size){
+    floaters.push({x:x,y:y,vy:-1.2,text:text,color:color,size:size||26,life:1,age:0});
+  }
+
+  function barCenterY(){
+    var r = bar.getBoundingClientRect();
+    return r.top + r.height/2;
+  }
+  function posToX(p){
+    var r = bar.getBoundingClientRect();
+    return r.left + p*r.width;
+  }
+
+  function tick(t){
+    rafId = requestAnimationFrame(tick);
+    if(!lastT) lastT = t;
+    var dt = Math.min((t-lastT)/1000, 0.05);
+    lastT = t;
+
+    // update sweep
+    if(state==='sweep'){
+      var sp = sweepSpeed;
+      if(isBonus){
+        jitterPhase += dt*6;
+        sp = sweepSpeed * (1 + Math.sin(jitterPhase)*jitterAmp);
+      }
+      sweepPos += sweepDir*sp*dt;
+      if(sweepPos>=1){ sweepPos=1; sweepDir=-1; }
+      else if(sweepPos<=0){ sweepPos=0; sweepDir=1; }
+      marker.style.left = (sweepPos*100)+'%';
+    }
+
+    // draw fx
+    ctx.clearRect(0,0,fx.width,fx.height);
+
+    var sx=0, sy=0;
+    if(shake>0 && !reduceMotion){
+      sx = (Math.random()*2-1)*shake;
+      sy = (Math.random()*2-1)*shake;
+      shake *= 0.86;
+      if(shake<0.3) shake=0;
+    }
+    ctx.save();
+    ctx.translate(sx,sy);
+
+    // rings
+    for(var i=rings.length-1;i>=0;i--){
+      var rg = rings[i];
+      rg.age += dt/0.5;
+      if(rg.age>=1){ rings.splice(i,1); continue; }
+      var rr = rg.r + (rg.max-rg.r)*easeOut(rg.age);
+      ctx.beginPath();
+      ctx.arc(rg.x, rg.y, rr, 0, Math.PI*2);
+      ctx.strokeStyle = rg.color;
+      ctx.globalAlpha = (1-rg.age)*0.8;
+      ctx.lineWidth = rg.w*(1-rg.age*0.6);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // particles
+    for(var j=particles.length-1;j>=0;j--){
+      var p = particles[j];
+      p.age += dt/p.life;
+      if(p.age>=1){ particles.splice(j,1); continue; }
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      ctx.globalAlpha = (1-p.age);
+      ctx.fillStyle = p.color;
+      if(p.star){
+        drawStar(ctx, p.x, p.y, p.size*1.6, p.size*0.7, 5);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.size*(1-p.age*0.4),0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // floaters
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(var k=floaters.length-1;k>=0;k--){
+      var f = floaters[k];
+      f.age += dt/0.9;
+      if(f.age>=1){ floaters.splice(k,1); continue; }
+      f.y += f.vy;
+      var sc = f.age<0.2 ? (f.age/0.2) : 1;
+      ctx.globalAlpha = (1-f.age)*1;
+      ctx.fillStyle = f.color;
+      ctx.font = '700 '+(f.size*sc)+'px "Space Grotesk", system-ui, sans-serif';
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // animate score number
+    if(displayScore !== score){
+      var diff = score - displayScore;
+      displayScore += Math.ceil(diff*0.25);
+      if(Math.abs(score-displayScore)<1) displayScore = score;
+      scoreVal.textContent = displayScore;
+    }
+  }
+  function easeOut(x){ return 1-Math.pow(1-x,3); }
+  function drawStar(c,x,y,outer,inner,points){
+    c.beginPath();
+    for(var i=0;i<points*2;i++){
+      var r = i%2===0?outer:inner;
+      var a = (Math.PI/points)*i - Math.PI/2;
+      var px = x+Math.cos(a)*r, py=y+Math.sin(a)*r;
+      if(i===0) c.moveTo(px,py); else c.lineTo(px,py);
+    }
+    c.closePath(); c.fill();
+  }
+  rafId = requestAnimationFrame(tick);
+
+  // ---------- Round setup ----------
+  function buildDots(){
+    dotsEl.innerHTML='';
+    for(var i=0;i<TOTAL_ROUNDS;i++){
+      var d=document.createElement('div');
+      d.className='dot';
+      dotsEl.appendChild(d);
+    }
+  }
+
+  function startGame(){
+    initAudio();
+    round=0; score=0; displayScore=0; combo=0; bestCombo=0;
+    hits=0; accSum=0; attempts=0;
+    scoreVal.textContent='0';
+    updateCombo(false);
+    buildDots();
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    nextRound();
+  }
+
+  function nextRound(){
+    if(round>=TOTAL_ROUNDS){ endGame(); return; }
+    round++;
+    state='beat';
+
+    // escalation: speed & narrowing
+    var prog = (round-1)/(TOTAL_ROUNDS-1); // 0..1
+    sweepSpeed = 0.55 + prog*0.95;          // 0.55 -> 1.5 sweeps/sec-ish
+    zoneHalf = 0.135 - prog*0.085;          // 0.135 -> 0.05 (half width)
+
+    // bonus round (not first, occasional); use deterministic-ish but variable
+    isBonus = (round>=4) && (Math.random()<0.3);
+    jitterAmp = 0; jitterPhase = Math.random()*Math.PI*2;
+    if(isBonus){
+      jitterAmp = 0.35 + Math.random()*0.25;  // variable jitter
+      zoneHalf *= 1.15; // slightly more forgiving width to compensate
+    }
+
+    // place zone center randomly, keep within bounds
+    zoneCenter = 0.18 + Math.random()*0.64;
+
+    // apply zone visuals
+    var leftPct = (zoneCenter - zoneHalf)*100;
+    var widthPct = (zoneHalf*2)*100;
+    zone.style.left = leftPct+'%';
+    zone.style.width = widthPct+'%';
+    bull.style.left = (zoneCenter*100)+'%';
+
+    // marker start
+    sweepPos = (Math.random()<0.5)?0:1;
+    sweepDir = sweepPos===0?1:-1;
+    marker.style.left = (sweepPos*100)+'%';
+    marker.style.background = isBonus ? 'var(--gold)' : 'var(--cool)';
+    marker.style.boxShadow = isBonus ? '0 0 14px var(--gold), 0 0 4px #fff' : '0 0 14px var(--cool), 0 0 4px #fff';
+
+    // dots state
+    var dots = dotsEl.children;
+    for(var i=0;i<dots.length;i++){
+      dots[i].classList.remove('cur');
+      dots[i].classList.toggle('bonus', false);
+    }
+    if(dots[round-1]){
+      dots[round-1].classList.add('cur');
+      if(isBonus) dots[round-1].classList.add('bonus');
+    }
+
+    reaction.style.opacity='0';
+    subreaction.textContent='';
+    promptEl.className='jp beat';
+    promptEl.textContent = isBonus ? 'BONUS… ためる準備' : '…ためる準備';
+
+    // quiet beat before sweep
+    var wait = 650 + Math.random()*250;
+    setTimeout(function(){
+      if(state!=='beat') return;
+      state='sweep';
+      promptEl.className='jp';
+      promptEl.textContent = isBonus ? 'いま！(2倍)' : 'とめろ';
+    }, wait);
+  }
+
+  // ---------- Resolve a stop ----------
+  function doStop(){
+    if(state!=='sweep') return;
+    state='resolve';
+
+    var dist = Math.abs(sweepPos - zoneCenter); // 0..1
+    var inZone = dist <= zoneHalf;
+    var x = posToX(sweepPos);
+    var y = barCenterY();
+    attempts++;
+
+    // accuracy as proximity (1 at bullseye, 0 at far edge of bar)
+    var norm = Math.max(0, 1 - dist/zoneHalf); // 0..1 within zone
+    var acc = inZone ? norm : 0;
+    accSum += acc;
+
+    if(inZone){
+      hits++;
+      combo++;
+      if(combo>bestCombo) bestCombo=combo;
+      var mult = comboMult();
+
+      // perfect threshold
+      var perfect = norm >= 0.86;
+      var base;
+      var label, lcolor, sub;
+
+      if(perfect){
+        base = 100;
+        label='PERFECT'; lcolor='var(--gold)';
+        sub='ど真ん中！';
+      } else if(norm>=0.5){
+        base=60; label='GREAT'; lcolor='var(--cool)';
+        sub='いいね';
+      } else {
+        base=30; label='GOOD'; lcolor='var(--cool)';
+        sub='';
+      }
+      var bonusMult = isBonus?2:1;
+      var gained = Math.round(base * mult * bonusMult);
+      score += gained;
+
+      showReaction(label, lcolor);
+      subreaction.textContent = sub + (isBonus?' ×2!':'');
+      addFloater(x, y-40, '+'+gained, lcolor, perfect?40:30);
+
+      if(perfect){
+        sndPerfect();
+        addRing(x,y,'#ffd166',120,4);
+        addRing(x,y,'#ffffff',70,2);
+        addBurst(x,y,'#ffd166',reduceMotion?10:34,9,1.1);
+        addBurst(x,y,'#ffffff',reduceMotion?4:12,6,0.9);
+        flash('rgba(255,209,102,.18)');
+        shake = reduceMotion?0:9;
+      } else {
+        sndHit(norm);
+        addRing(x,y,'#39d6c4',80,3);
+        addBurst(x,y,'#39d6c4',reduceMotion?8:20,6,0.9);
+        flash('rgba(57,214,196,.10)');
+        shake = reduceMotion?0:3;
+      }
+      bumpScore();
+      if(combo>=2){ sndCombo(combo); updateCombo(true); }
+
+      // mark dot
+      var d = dotsEl.children[round-1];
+      if(d){ d.classList.add(perfect?'perfect':'done'); }
+
+    } else {
+      // miss
+      combo=0;
+      updateCombo(false);
+      score += 5; // tiny consolation
+      showReaction('MISS','var(--hot)');
+      subreaction.textContent = sweepPos<zoneCenter ? '手前すぎ' : '行きすぎ';
+      sndMiss();
+      addBurst(x,y,'#ff5e5b',reduceMotion?8:18,7,0.9);
+      addRing(x,y,'#ff5e5b',60,2);
+      flash('rgba(255,94,91,.12)');
+      shake = reduceMotion?0:5;
+      var d2 = dotsEl.children[round-1];
+      if(d2){ d2.classList.add('miss'); }
+    }
+
+    promptEl.className='jp';
+    promptEl.textContent='';
+
+    // freeze marker on bar, then move on
+    setTimeout(nextRound, 900);
+  }
+
+  function comboMult(){
+    // 1x at combo<2, then grows: 2->1.5, 3->2, 4->2.5 ... cap
+    if(combo<2) return 1;
+    return Math.min(1 + (combo-1)*0.5, 5);
+  }
+
+  function updateCombo(active){
+    if(active && combo>=2){
+      comboBox.classList.add('on');
+      var m = comboMult();
+      comboVal.textContent = 'x'+(Number.isInteger(m)?m:m.toFixed(1));
+      comboVal.style.transform='scale(1.4)';
+      comboVal.style.transition='transform .12s';
+      setTimeout(function(){ comboVal.style.transform='scale(1)'; }, 130);
+    } else {
+      comboBox.classList.remove('on');
+    }
+  }
+
+  function showReaction(text, color){
+    reaction.textContent = text;
+    reaction.style.color = color;
+    reaction.style.transition='none';
+    reaction.style.opacity='0';
+    reaction.style.transform='scale(.6)';
+    // force reflow
+    void reaction.offsetWidth;
+    reaction.style.transition='transform .25s cubic-bezier(.2,1.4,.4,1), opacity .2s';
+    reaction.style.opacity='1';
+    reaction.style.transform='scale(1)';
+  }
+
+  function bumpScore(){
+    scoreVal.style.transform='scale(1.25)';
+    setTimeout(function(){ scoreVal.style.transform='scale(1)'; }, 90);
+  }
+
+  var flashEl=null;
+  function flash(color){
+    if(reduceMotion) return;
+    if(!flashEl){
+      flashEl=document.createElement('div');
+      flashEl.style.cssText='position:fixed;inset:0;z-index:25;pointer-events:none;opacity:0;transition:opacity .35s;';
+      document.body.appendChild(flashEl);
+    }
+    flashEl.style.background=color;
+    flashEl.style.transition='none';
+    flashEl.style.opacity='1';
+    void flashEl.offsetWidth;
+    flashEl.style.transition='opacity .35s';
+    flashEl.style.opacity='0';
+  }
+
+  // ---------- End ----------
+  function endGame(){
+    state='end';
+    promptEl.textContent='';
+    reaction.style.opacity='0';
+
+    var acc = attempts>0 ? Math.round((accSum/attempts)*100) : 0;
+    var grade = gradeFor(score);
+
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('bestCombo').textContent = 'x'+bestCombo;
+    document.getElementById('accuracy').textContent = acc+'%';
+    document.getElementById('grade').textContent = grade.g;
+    document.getElementById('grade').style.color = grade.c;
+    document.getElementById('endLine').textContent = grade.line;
+
+    if(score>hi){ hi=score; saveHi(); }
+    document.getElementById('hiVal').textContent = hi;
+
+    endScreen.classList.remove('hidden');
+
+    // celebratory burst
+    if(grade.g==='S'||grade.g==='A'){
+      var cx=window.innerWidth/2, cy=window.innerHeight*0.32;
+      addBurst(cx,cy, grade.c==='var(--gold)'?'#ffd166':'#39d6c4', reduceMotion?10:40, 11, 1.4);
+      addRing(cx,cy,grade.c,180,4);
+      sndPerfect();
+    }
+  }
+
+  function gradeFor(sc){
+    // max plausible ~ depends on combos; tune thresholds
+    if(sc>=2600) return {g:'S', c:'var(--gold)', line:'神業。止める者。'};
+    if(sc>=1900) return {g:'A', c:'var(--cool)', line:'見事。指が冴えてる。'};
+    if(sc>=1200) return {g:'B', c:'var(--cool)', line:'なかなかの精度。'};
+    return {g:'C', c:'var(--muted)', line:'もう一回、いける。'};
+  }
+
+  // ---------- Input ----------
+  function press(e){
+    // only act inside game frame; allow on overlays via their buttons
+    if(state==='start' || state==='end') return;
+    if(e){ if(e.cancelable) e.preventDefault(); }
+    initAudio();
+    if(state==='sweep'){
+      doStop();
+    } else if(state==='beat'){
+      // small punish-resist: tapping during beat does nothing (avoid mashing)
+      sndTick();
+    }
+  }
+
+  // pointerdown on play area + bar (keep on game's own elements so it doesn't scroll feed)
+  document.getElementById('play').addEventListener('pointerdown', press);
+  document.getElementById('hud').addEventListener('pointerdown', function(e){ press(e); });
+
+  // keyboard
+  window.addEventListener('keydown', function(e){
+    if(e.code==='Space' || e.key===' '){
+      if(state==='start'){ e.preventDefault(); startGame(); return; }
+      if(state==='end'){ e.preventDefault(); startGame(); return; }
+      e.preventDefault();
+      press(e);
+    }
+  });
+
+  startBtn.addEventListener('click', function(e){ e.stopPropagation(); initAudio(); startGame(); });
+  startBtn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+  againBtn.addEventListener('click', function(e){ e.stopPropagation(); initAudio(); startGame(); });
+  againBtn.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+
+  // prevent the whole body from initiating scroll/gesture
+  document.body.addEventListener('touchmove', function(e){ e.preventDefault(); }, {passive:false});
+
+})();
+</script>
+</body>
+</html>
