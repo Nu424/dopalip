@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ファクトチェック</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16131f; --ink2:#1f1b2e; --line:#322c45;
+    --cool:#39d6c4; --gold:#ffd166; --hot:#ff5e5b;
+    --text:#f2ece4; --muted:#8b86a0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    min-height:100dvh;
+    background:radial-gradient(120% 80% at 50% -10%, #241f38 0%, var(--ink) 55%);
+    color:var(--text);
+    font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Segoe UI",sans-serif;
+    overflow:hidden;
+    user-select:none;-webkit-user-select:none;
+    touch-action:none;
+  }
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;}
+  .num{font-family:"Space Grotesk",system-ui,sans-serif;font-variant-numeric:tabular-nums;}
+
+  /* particle canvas */
+  #fx{position:fixed;inset:0;width:100%;height:100dvh;pointer-events:none;z-index:7;}
+
+  /* HUD */
+  #hud{position:relative;z-index:3;padding:12px 14px 6px;display:flex;justify-content:space-between;align-items:flex-start;}
+  #score{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:30px;line-height:1;letter-spacing:-0.5px;text-shadow:0 2px 10px rgba(0,0,0,.5);}
+  #score small{display:block;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:2px;margin-top:3px;font-family:system-ui,sans-serif;}
+  #right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+  #lives{font-size:20px;letter-spacing:2px;line-height:1;}
+  #lives .dead{opacity:.2;filter:grayscale(1);}
+  #combo{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:15px;color:var(--gold);opacity:0;transition:transform .12s,opacity .2s;height:16px;}
+  #combo.show{opacity:1;}
+
+  /* timer bar */
+  #timerwrap{position:relative;z-index:3;height:7px;margin:2px 14px 0;border-radius:7px;background:rgba(50,44,69,.6);overflow:hidden;}
+  #timer{position:absolute;inset:0;transform-origin:left center;transform:scaleX(1);
+    background:linear-gradient(90deg,var(--cool),var(--gold));border-radius:7px;}
+  #timer.low{background:linear-gradient(90deg,var(--hot),#ff9a3b);}
+
+  /* play area */
+  #play{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;min-height:0;}
+
+  /* crowd badge */
+  #crowd{position:relative;z-index:3;align-self:center;margin:8px 0 0;max-width:90%;
+    padding:7px 14px;border-radius:999px;border:1px solid rgba(255,209,102,.5);
+    background:rgba(255,209,102,.1);color:var(--gold);font-size:13px;font-weight:600;
+    display:flex;align-items:center;gap:6px;text-align:center;line-height:1.3;
+    opacity:0;transform:scale(.9);transition:opacity .2s,transform .2s;}
+  #crowd.show{opacity:1;transform:scale(1);animation:crowdpulse 1.1s ease-in-out infinite;}
+  @keyframes crowdpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.0);}50%{box-shadow:0 0 18px 2px rgba(255,209,102,.35);transform:scale(1.04);}}
+
+  /* claim card */
+  #claimwrap{flex:1;display:flex;align-items:center;justify-content:center;padding:10px 20px;min-height:0;}
+  #claim{font-size:clamp(20px,6.2vw,30px);font-weight:700;line-height:1.55;text-align:center;
+    max-width:520px;text-shadow:0 2px 14px rgba(0,0,0,.4);transition:transform .12s,opacity .12s;}
+
+  /* verdict overlay */
+  #verdict{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;pointer-events:none;opacity:0;transition:opacity .12s;padding:24px;}
+  #verdict.show{opacity:1;}
+  #mark{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:96px;line-height:1;
+    text-shadow:0 6px 30px rgba(0,0,0,.5);}
+  #vline{font-size:16px;font-weight:700;letter-spacing:1px;}
+  #vnote{font-size:14px;color:var(--text);max-width:340px;text-align:center;line-height:1.6;
+    background:rgba(31,27,46,.82);border:1px solid var(--line);border-radius:12px;padding:9px 14px;backdrop-filter:blur(4px);}
+  #vbonus{font-size:14px;font-weight:700;color:var(--gold);letter-spacing:.5px;min-height:18px;}
+
+  /* answer buttons */
+  #answers{display:flex;gap:10px;padding:10px 12px calc(12px + env(safe-area-inset-bottom));}
+  .ans{flex:1;cursor:pointer;border:1px solid var(--line);border-radius:18px;padding:18px 8px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    font-family:system-ui,sans-serif;transition:transform .08s,box-shadow .12s,background .12s;}
+  .ans:active{transform:scale(.96);}
+  .ans .big{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:26px;letter-spacing:1px;}
+  .ans .jp{font-size:20px;font-weight:700;letter-spacing:2px;}
+  .ans .hint{font-size:10px;color:var(--muted);letter-spacing:1px;font-family:"Space Grotesk",monospace;}
+  #ansF{background:linear-gradient(180deg,rgba(255,94,91,.18),rgba(255,94,91,.07));color:var(--hot);box-shadow:inset 0 0 0 1px rgba(255,94,91,.25);}
+  #ansF:active{box-shadow:inset 0 0 0 2px rgba(255,94,91,.5),0 6px 22px rgba(255,94,91,.3);}
+  #ansT{background:linear-gradient(180deg,rgba(57,214,196,.18),rgba(57,214,196,.07));color:var(--cool);box-shadow:inset 0 0 0 1px rgba(57,214,196,.25);}
+  #ansT:active{box-shadow:inset 0 0 0 2px rgba(57,214,196,.5),0 6px 22px rgba(57,214,196,.3);}
+  .ans:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+
+  /* mute */
+  #mute{position:fixed;top:12px;right:50%;transform:translateX(50%);width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+    background:rgba(31,27,46,.7);color:var(--text);font-size:15px;cursor:pointer;backdrop-filter:blur(6px);z-index:8;
+    display:flex;align-items:center;justify-content:center;}
+  #mute:focus-visible{outline:2px solid var(--cool);outline-offset:2px;}
+
+  /* overlays */
+  .panel{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:26px;gap:12px;z-index:9;background:radial-gradient(120% 80% at 50% -10%, #241f38 0%, var(--ink) 55%);}
+  .panel.hidden{display:none;}
+  .kicker{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:13px;letter-spacing:7px;color:var(--gold);margin:0;text-transform:uppercase;}
+  .ttl{font-weight:800;font-size:42px;margin:-2px 0 2px;letter-spacing:3px;text-shadow:0 4px 24px rgba(255,209,102,.22);}
+  .rules{color:var(--muted);font-size:14px;line-height:1.95;margin:0;max-width:300px;}
+  .rules b{color:var(--text);font-weight:600;}
+  .rules .c{color:var(--cool);} .rules .h{color:var(--hot);} .rules .g{color:var(--gold);}
+  .key{display:inline-block;background:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-family:"Space Grotesk",monospace;font-size:12px;color:var(--cool);}
+  .btn{margin-top:10px;cursor:pointer;border:none;border-radius:14px;
+    padding:15px 40px;font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:18px;letter-spacing:1px;
+    color:var(--ink);background:linear-gradient(180deg,#ffe08a,var(--gold));box-shadow:0 8px 24px rgba(255,209,102,.35);
+    transition:transform .1s;}
+  .btn:active{transform:scale(.95);}
+  .btn:focus-visible{outline:3px solid var(--cool);outline-offset:3px;}
+
+  /* end screen stats */
+  #grade{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:80px;line-height:1;margin:0;}
+  .stats{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin:2px 0 0;}
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat .v{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;font-size:26px;line-height:1;}
+  .stat .l{font-size:10px;color:var(--muted);letter-spacing:1.5px;}
+  #endmsg{color:var(--muted);font-size:13px;max-width:300px;line-height:1.7;margin:4px 0 0;}
+  #best{color:var(--muted);font-size:12px;letter-spacing:1px;}
+
+  .shake{animation:shake .32s;}
+  @keyframes shake{10%{transform:translate(-7px,2px)}30%{transform:translate(6px,-3px)}50%{transform:translate(-5px,2px)}70%{transform:translate(4px,-2px)}90%{transform:translate(-2px,1px)}}
+  @media(prefers-reduced-motion:reduce){
+    .shake{animation:none;}
+    #crowd.show{animation:none;}
+    @keyframes crowdpulse{}
+  }
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<button id="mute" aria-label="サウンド切替">♪</button>
+
+<div id="wrap">
+  <div id="hud">
+    <div id="score" class="num">0<small>SCORE</small></div>
+    <div id="right">
+      <div id="lives">❤️❤️❤️</div>
+      <div id="combo" class="num">×1</div>
+    </div>
+  </div>
+  <div id="timerwrap"><div id="timer"></div></div>
+
+  <div id="play">
+    <div id="crowd"></div>
+    <div id="claimwrap"><div id="claim"></div></div>
+    <div id="verdict">
+      <div id="mark"></div>
+      <div id="vline"></div>
+      <div id="vbonus"></div>
+      <div id="vnote"></div>
+    </div>
+  </div>
+
+  <div id="answers">
+    <button class="ans" id="ansF">
+      <span class="big">✕</span><span class="jp">ウソ</span><span class="hint">← / A</span>
+    </button>
+    <button class="ans" id="ansT">
+      <span class="big">◯</span><span class="jp">ホント</span><span class="hint">L / →</span>
+    </button>
+  </div>
+</div>
+
+<!-- START -->
+<div class="panel" id="start">
+  <p class="kicker">FACT CHECK</p>
+  <h1 class="ttl">ファクトチェック</h1>
+  <p class="rules">
+    流れる主張を <b class="h">ウソ</b> か <b class="c">ホント</b> で即ジャッジ。<br>
+    <b>左＝ウソ</b> / <b>右＝ホント</b>（<span class="key">←</span><span class="key">→</span> も可）<br>
+    時々出る <b class="g">🔥 みんなの意見</b> は<b>ワナ</b>のことも。<br>
+    <b>多数派 ≠ 正解。</b>自分で確かめろ。
+  </p>
+  <button class="btn" id="startBtn">スタート</button>
+  <p id="best">&nbsp;</p>
+</div>
+
+<!-- END -->
+<div class="panel hidden" id="end">
+  <p class="kicker">RESULT</p>
+  <h1 id="grade" class="num">A</h1>
+  <div id="score2" class="num" style="font-weight:700;font-size:38px;">0</div>
+  <div class="stats">
+    <div class="stat"><span class="v num" id="sAcc">0%</span><span class="l">正答率</span></div>
+    <div class="stat"><span class="v num" id="sStreak">0</span><span class="l">最長連続</span></div>
+    <div class="stat"><span class="v num" id="sResist" style="color:var(--gold)">0</span><span class="l">流されなかった</span></div>
+  </div>
+  <p id="endmsg"></p>
+  <button class="btn" id="againBtn">もう一回</button>
+  <p id="best2">&nbsp;</p>
+</div>
+
+<script>
+"use strict";
+const FACTS = [
+  {q:"タコの心臓は3つある。", a:true,  note:"えら用2つ＋全身用1つの計3つ。"},
+  {q:"ハチミツは正しく保存すれば腐らず数千年もつ。", a:true, note:"低水分・高糖・酸性で菌が繁殖できない。"},
+  {q:"エッフェル塔は夏、熱で鉄が膨張して最大15cmほど高くなる。", a:true, note:"金属の熱膨張による。"},
+  {q:"バナナは植物学上『ベリー（液果）』に分類される。", a:true, note:"一方イチゴは植物学上はベリーではない。"},
+  {q:"金星は水星より太陽から遠いのに、表面温度は水星より高い。", a:true, note:"分厚いCO2の温室効果で約465℃。"},
+  {q:"サメは恐竜が現れるより前から地球にいた。", a:true, note:"サメは約4億年前、恐竜は約2.3億年前。"},
+  {q:"きくらげはキノコ（菌類）の一種である。", a:true, note:"木に生える食用キノコ。海藻ではない。"},
+  {q:"ペンギンは自然分布では北極にいない。", a:true, note:"野生では主に南半球に生息。"},
+  {q:"月は地球から年に約3.8cmずつ遠ざかっている。", a:true, note:"潮汐の作用による。"},
+  {q:"人体で最も硬い組織は歯のエナメル質である。", a:true, note:"骨より硬い。"},
+  {q:"縄文土器は世界最古級の土器のひとつである。", a:true, note:"約1万6千年前まで遡るとされる。"},
+  {q:"雷の電光は太陽の表面より高温になることがある。", a:true, note:"電光は約3万K、太陽表面は約5800K。"},
+  {q:"宇宙の真空中では音は伝わらない。", a:true, note:"音を伝える空気がないため。"},
+  {q:"ダイヤモンドは炭素だけでできている。", a:true, note:"炭素原子の結晶。"},
+  {q:"カタツムリは数千本もの歯（歯舌）を持つ。", a:true, note:"おろし金状の歯舌で削り取る。"},
+  {q:"富士山の8合目より上は神社の所有地とされている。", a:true, note:"富士山本宮浅間大社の境内地。"},
+  {q:"金魚の記憶は3秒しか持たない。", a:false, note:"実際は数か月覚えるという研究がある。"},
+  {q:"人間は脳の10%しか使っていない。", a:false, note:"有名な俗説。脳は広く活動している。"},
+  {q:"万里の長城は宇宙（月面）から肉眼で見える。", a:false, note:"肉眼では見えないという俗説。"},
+  {q:"コウモリは全種が目が見えない（盲目）。", a:false, note:"超音波も使うが目も見える。"},
+  {q:"人類と恐竜は同じ時代に共存していた。", a:false, note:"恐竜絶滅は約6600万年前、人類はずっと後。"},
+  {q:"一年で昼が最も長い夏至は、一年で最も暑い日でもある。", a:false, note:"最も暑いのは夏至より後（季節の遅れ）。"},
+  {q:"血液は体内では青い色をしている。", a:false, note:"酸素が少なくても暗い赤。青く見えるのは皮膚越しの光。"},
+  {q:"ナポレオンは当時としては非常に背が低かった。", a:false, note:"約168cmで当時としては平均的。"},
+  {q:"ラクダのコブには水が詰まっている。", a:false, note:"中身は脂肪。"},
+  {q:"稲妻は同じ場所に二度落ちることはない。", a:false, note:"高い建物には何度も落ちる。"},
+  {q:"人は死後も髪と爪が伸び続ける。", a:false, note:"皮膚が乾いて縮み、伸びたように見えるだけ。"},
+  {q:"アインシュタインは数学が苦手で落第していた。", a:false, note:"数学はむしろ得意だった俗説。"},
+  {q:"舌は場所ごとに感じる味が完全に分かれている（味覚地図）。", a:false, note:"古い説で、現在は否定されている。"},
+  {q:"北極星は夜空で最も明るい星である。", a:false, note:"最も明るい恒星はシリウス。"},
+  {q:"コーヒー豆は植物学上『マメ科の豆』である。", a:false, note:"コーヒーノキの果実の種子。マメ科ではない。"},
+  {q:"縄文時代の人々は鉄器を使って暮らしていた。", a:false, note:"鉄器の普及は弥生〜古墳時代以降。"},
+  {q:"観覧車は乗っている間ずっと止まらず回り続けるのが普通だ。", a:true, note:"多くの大型観覧車は低速で連続回転している。"},
+  {q:"化石燃料（石炭・石油）は再生可能エネルギーである。", a:false, note:"再生に膨大な時間がかかり、実質的に枯渇性。"}
+];
+
+const reduceMotion = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+/* ---------- elements ---------- */
+const $ = id => document.getElementById(id);
+const elScore=$("score"), elScore2=$("score2"), elLives=$("lives"), elCombo=$("combo");
+const elTimer=$("timer"), elTimerWrap=$("timerwrap");
+const elCrowd=$("crowd"), elClaim=$("claim"), elClaimWrap=$("claimwrap");
+const elVerdict=$("verdict"), elMark=$("mark"), elVline=$("vline"), elVnote=$("vnote"), elVbonus=$("vbonus");
+const elWrap=$("wrap"), elPlay=$("play");
+const startPanel=$("start"), endPanel=$("end");
+
+/* ---------- audio ---------- */
+let actx=null, muted=false;
+function initAudio(){ if(actx) { if(actx.state==="suspended") actx.resume(); return; }
+  try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx=null; } }
+function tone(freq,dur,type,gain,when){
+  if(!actx||muted) return;
+  try{
+    const t=actx.currentTime+(when||0);
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain||0.18,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function sweep(f0,f1,dur,type,gain){
+  if(!actx||muted) return;
+  try{
+    const t=actx.currentTime;
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type||"sawtooth"; o.frequency.setValueAtTime(f0,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40,f1),t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain||0.16,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function sndCorrect(combo){
+  const base=520+Math.min(combo,12)*42;
+  tone(base,0.12,"triangle",0.18,0);
+  tone(base*1.5,0.14,"sine",0.12,0.05);
+}
+function sndWrong(){
+  sweep(360,70,0.4,"sawtooth",0.14);
+  // lowpass noise burst
+  if(!actx||muted) return;
+  try{
+    const t=actx.currentTime, len=0.35;
+    const buf=actx.createBuffer(1,actx.sampleRate*len,actx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const src=actx.createBufferSource(); src.buffer=buf;
+    const lp=actx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=900;
+    const g=actx.createGain(); g.gain.value=0.16;
+    src.connect(lp).connect(g).connect(actx.destination); src.start(t);
+  }catch(e){}
+}
+function sndResist(){
+  const seq=[523,659,784,1047,1319];
+  seq.forEach((f,i)=>tone(f,0.16,"triangle",0.16,i*0.07));
+  tone(1568,0.3,"sine",0.1,seq.length*0.07);
+}
+function sndTick(){ tone(880,0.05,"square",0.06,0); }
+
+/* ---------- particles ---------- */
+const cv=$("fx"), ctx=cv.getContext("2d");
+let DPR=1, parts=[];
+function resize(){ DPR=Math.min(devicePixelRatio||1,2); cv.width=innerWidth*DPR; cv.height=innerHeight*DPR; }
+addEventListener("resize",resize); resize();
+function burst(x,y,color,n){
+  if(reduceMotion){ n=Math.min(n,6); }
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, sp=2+Math.random()*7;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:1,color,r:2+Math.random()*3});
+  }
+}
+function loopFx(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.22; p.vx*=0.98; p.life-=0.022;
+    if(p.life<=0){ parts.splice(i,1); continue; }
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x*DPR,p.y*DPR,p.r*DPR,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  requestAnimationFrame(loopFx);
+}
+loopFx();
+
+/* ---------- game state ---------- */
+let deck=[], di=0;
+let score=0, combo=0, lives=3, running=false, locked=true;
+let answered=0, correctCount=0, streak=0, longest=0, resisted=0;
+let cur=null, crowdTrap=false, crowdShown=false;
+let tStart=0, tLimit=0, rafTimer=0, lastTick=0;
+let bestScore=0, bestAcc=0;
+
+try{ const b=localStorage.getItem("fc_best"); if(b){ const o=JSON.parse(b); bestScore=o.s||0; bestAcc=o.a||0; } }catch(e){}
+function showBest(){
+  const s = bestScore>0 ? ("BEST "+bestScore+" / 正答率 "+bestAcc+"%") : "";
+  $("best").textContent=s||" "; $("best2").textContent=s||" ";
+}
+showBest();
+
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildDeck(){ deck=shuffle(FACTS); di=0; }
+function nextFact(){ if(di>=deck.length){ deck=shuffle(FACTS); di=0; } return deck[di++]; }
+
+function timeLimitMs(){
+  // escalation: shrink with streak, floor at 2.2s
+  return Math.max(2200, 4500 - streak*140);
+}
+
+function setLives(){
+  let s="";
+  for(let i=0;i<3;i++) s+= i<lives ? "❤️" : '<span class="dead">🖤</span>';
+  elLives.innerHTML=s;
+}
+function setScore(){ elScore.firstChild.textContent=String(score); }
+function popScore(){ if(reduceMotion) return; elScore.style.transform="scale(1.18)"; setTimeout(()=>elScore.style.transform="",120); }
+function showCombo(){
+  if(combo>=2){ elCombo.textContent="×"+comboMult().toFixed(1).replace(/\.0$/,""); elCombo.classList.add("show");
+    if(!reduceMotion){ elCombo.style.transform="scale(1.3)"; setTimeout(()=>elCombo.style.transform="",120); } }
+  else elCombo.classList.remove("show");
+}
+function comboMult(){ return 1 + Math.min(combo-1,15)*0.25; } // grows with streak
+
+/* ---------- round flow ---------- */
+function startGame(){
+  initAudio();
+  score=0; combo=0; lives=3; answered=0; correctCount=0; streak=0; longest=0; resisted=0;
+  running=true;
+  buildDeck();
+  setLives(); setScore(); showCombo();
+  startPanel.classList.add("hidden"); endPanel.classList.add("hidden");
+  nextRound();
+}
+
+function nextRound(){
+  cur=nextFact();
+  // crowd badge ~1 in 4 (more traps later)
+  crowdShown = Math.random() < 0.27 + Math.min(streak*0.012,0.18);
+  crowdTrap=false;
+  elCrowd.classList.remove("show");
+  if(crowdShown){
+    // crowd may point right or wrong. Bias toward trap as streak rises.
+    const trapChance = 0.45 + Math.min(streak*0.02,0.25);
+    crowdTrap = Math.random() < trapChance;
+    const crowdSays = crowdTrap ? !cur.a : cur.a; // what the crowd claims
+    const pct = 62 + Math.floor(Math.random()*30); // 62-91%
+    elCrowd.textContent = "🔥 みんなは『"+(crowdSays?"ホント":"ウソ")+"』派 ("+pct+"%)";
+    // small delay so it pops after the claim
+    setTimeout(()=>{ if(cur) elCrowd.classList.add("show"); }, 160);
+  }
+
+  elClaim.textContent=cur.q;
+  if(!reduceMotion){ elClaim.style.opacity="0"; elClaim.style.transform="translateY(8px)";
+    requestAnimationFrame(()=>{ elClaim.style.opacity="1"; elClaim.style.transform="translateY(0)"; }); }
+
+  // timer
+  tLimit=timeLimitMs(); tStart=performance.now(); lastTick=0;
+  elTimer.classList.remove("low");
+  locked=false;
+  cancelAnimationFrame(rafTimer);
+  tickTimer();
+}
+
+function tickTimer(){
+  const now=performance.now();
+  const elapsed=now-tStart;
+  const left=Math.max(0,1-elapsed/tLimit);
+  elTimer.style.transform="scaleX("+left+")";
+  if(left<0.33){ elTimer.classList.add("low");
+    const tk=Math.floor(elapsed/300);
+    if(tk!==lastTick){ lastTick=tk; sndTick(); } }
+  if(left<=0){ timeout(); return; }
+  if(!locked) rafTimer=requestAnimationFrame(tickTimer);
+}
+
+function answer(userSaysTrue){
+  if(locked||!running) return;
+  locked=true; cancelAnimationFrame(rafTimer);
+  elCrowd.classList.remove("show");
+  const elapsed=performance.now()-tStart;
+  const correct = (userSaysTrue===cur.a);
+  answered++;
+  const rect=elPlay.getBoundingClientRect();
+  const cx=rect.left+rect.width/2, cy=rect.top+rect.height*0.42;
+
+  if(correct){
+    correctCount++; combo++; streak++; longest=Math.max(longest,streak);
+    const speed=Math.max(0, 1-elapsed/tLimit);            // 0..1
+    const speedBonus=Math.round(speed*60);                 // up to +60
+    const base=100;
+    let gain=Math.round((base+speedBonus)*comboMult());
+    const resistedNow = crowdShown && crowdTrap;           // we went against a wrong crowd
+    if(resistedNow){ resisted++; gain+=150; }
+    score+=gain;
+    // refill a little time feeling: handled implicitly (next round resets)
+    setScore(); popScore(); showCombo();
+    elMark.textContent="◯"; elMark.style.color="var(--cool)";
+    elVline.textContent="+"+gain+(speed>0.66?"  ⚡はやい！":""); elVline.style.color="var(--cool)";
+    if(resistedNow){
+      elVbonus.textContent="流されなかった！ +150";
+      sndResist();
+      burst(cx,cy,"#ffd166",reduceMotion?10:44);
+      burst(cx,cy,"#39d6c4",reduceMotion?6:20);
+    }else{
+      elVbonus.textContent= combo>=3 ? ("コンボ ×"+combo+"！") : "";
+      sndCorrect(combo);
+      burst(cx,cy,"#39d6c4",reduceMotion?8:24);
+    }
+  }else{
+    combo=0; streak=0;
+    lives--;
+    setScore(); showCombo(); setLives();
+    elMark.textContent="✕"; elMark.style.color="var(--hot)";
+    const followedCrowd = crowdShown && crowdTrap && (userSaysTrue!==cur.a);
+    elVline.textContent= cur.a ? "正解は ホント" : "正解は ウソ"; elVline.style.color="var(--hot)";
+    elVbonus.textContent = followedCrowd ? "釣られた…多数派に流されたね" : "";
+    sndWrong();
+    burst(cx,cy,"#ff5e5b",reduceMotion?8:22);
+    if(!reduceMotion){ elWrap.classList.remove("shake"); void elWrap.offsetWidth; elWrap.classList.add("shake"); }
+  }
+
+  elVnote.textContent=cur.note;
+  elVerdict.classList.add("show");
+
+  setTimeout(()=>{
+    elVerdict.classList.remove("show");
+    elVbonus.textContent="";
+    if(lives<=0){ endGame(); }
+    else { setTimeout(nextRound, reduceMotion?60:120); }
+  }, lives<=0 ? 1100 : 850);
+}
+
+function timeout(){
+  if(locked||!running) return;
+  locked=true; cancelAnimationFrame(rafTimer);
+  elCrowd.classList.remove("show");
+  combo=0; streak=0; lives--; answered++;
+  setScore(); showCombo(); setLives();
+  const rect=elPlay.getBoundingClientRect();
+  burst(rect.left+rect.width/2, rect.top+rect.height*0.42,"#ff5e5b",reduceMotion?8:22);
+  elMark.textContent="✕"; elMark.style.color="var(--hot)";
+  elVline.textContent="時間切れ！  正解は "+(cur.a?"ホント":"ウソ"); elVline.style.color="var(--hot)";
+  elVbonus.textContent="";
+  elVnote.textContent=cur.note;
+  elVerdict.classList.add("show");
+  sndWrong();
+  if(!reduceMotion){ elWrap.classList.remove("shake"); void elWrap.offsetWidth; elWrap.classList.add("shake"); }
+  setTimeout(()=>{
+    elVerdict.classList.remove("show");
+    if(lives<=0) endGame();
+    else setTimeout(nextRound, reduceMotion?60:120);
+  }, lives<=0 ? 1100 : 850);
+}
+
+function gradeFor(acc, sc){
+  if(acc>=90 && sc>=2200) return ["S","var(--gold)"];
+  if(acc>=80) return ["A","var(--cool)"];
+  if(acc>=65) return ["B","var(--text)"];
+  return ["C","var(--muted)"];
+}
+function endGame(){
+  running=false; locked=true;
+  const acc = answered>0 ? Math.round(correctCount/answered*100) : 0;
+  const [g,gc]=gradeFor(acc,score);
+  $("grade").textContent=g; $("grade").style.color=gc;
+  elScore2.textContent=String(score);
+  $("sAcc").textContent=acc+"%";
+  $("sStreak").textContent=String(longest);
+  $("sResist").textContent=String(resisted);
+  let msg;
+  if(resisted>=3) msg="群れに流されず、自分の頭で確かめた。最高だ。";
+  else if(acc>=80) msg="鋭い目だ。多数派 ≠ 正解、を忘れずに。";
+  else if(resisted>0) msg="一度は流されなかったね。その姿勢を大きく。";
+  else msg="主張は一度疑ってかかろう。声の大きさは正しさじゃない。";
+  $("endmsg").textContent=msg;
+
+  if(score>bestScore || (score===bestScore && acc>bestAcc)){
+    bestScore=score; bestAcc=acc;
+    try{ localStorage.setItem("fc_best",JSON.stringify({s:bestScore,a:bestAcc})); }catch(e){}
+  }
+  showBest();
+  endPanel.classList.remove("hidden");
+}
+
+/* ---------- input ---------- */
+function press(el){ if(reduceMotion) return; el.style.transform="scale(.96)"; setTimeout(()=>el.style.transform="",90); }
+function bindAns(el,val){
+  el.addEventListener("pointerdown",e=>{ e.preventDefault(); initAudio(); press(el); answer(val); });
+}
+bindAns($("ansF"),false);
+bindAns($("ansT"),true);
+
+addEventListener("keydown",e=>{
+  if(!running){
+    if(e.key==="Enter"||e.key===" "){ if(!startPanel.classList.contains("hidden")||!endPanel.classList.contains("hidden")){ e.preventDefault(); startGame(); } }
+    return;
+  }
+  let v=null;
+  if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A"||e.key==="f"||e.key==="F") v=false;
+  else if(e.key==="ArrowRight"||e.key==="l"||e.key==="L"||e.key==="j"||e.key==="J") v=true;
+  if(v!==null){ e.preventDefault(); press(v?$("ansT"):$("ansF")); answer(v); }
+},{passive:false});
+
+$("startBtn").addEventListener("pointerdown",e=>{ e.preventDefault(); startGame(); });
+$("againBtn").addEventListener("pointerdown",e=>{ e.preventDefault(); startGame(); });
+
+$("mute").addEventListener("pointerdown",e=>{ e.preventDefault(); initAudio(); muted=!muted; $("mute").textContent=muted?"🔇":"♪"; });
+
+// prevent context menu / scroll gestures inside play
+["contextmenu","gesturestart"].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
+document.addEventListener("touchmove",e=>{ e.preventDefault(); },{passive:false});
+</script>
+</body>
+</html>

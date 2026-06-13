@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>鉄球 — Iron Wrecking Ball</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16131f; --ink2:#1f1b2e; --line:#322c45;
+    --cool:#39d6c4; --gold:#ffd166; --hot:#ff5e5b;
+    --text:#f2ece4; --muted:#8b86a0;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    min-height:100dvh;
+    background: radial-gradient(120% 80% at 50% -10%, #241f38 0%, var(--ink) 55%);
+    color:var(--text);
+    font-family:"Space Grotesk", system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+    touch-action:none;
+  }
+  #wrap{ position:fixed; inset:0; }
+  canvas{ display:block; width:100%; height:100dvh; touch-action:none; }
+
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+    gap:14px; padding:24px; z-index:10;
+  }
+  .hidden{ display:none !important; }
+
+  .jp{ font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; }
+
+  h1{
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    font-weight:700; font-size:clamp(40px,13vw,76px);
+    margin:0; letter-spacing:.04em;
+    color:var(--text);
+    text-shadow:0 0 26px rgba(57,214,196,.35);
+  }
+  .sub{ font-size:clamp(13px,3.6vw,17px); color:var(--cool); letter-spacing:.18em; margin-top:-6px; }
+  .rules{
+    font-size:clamp(13px,3.8vw,16px); line-height:1.9; color:var(--text);
+    background:rgba(31,27,46,.66); border:1px solid var(--line);
+    border-radius:14px; padding:14px 18px; max-width:340px;
+  }
+  .rules b{ color:var(--gold); font-weight:700; }
+  .rules .c{ color:var(--cool); }
+  .rules .h{ color:var(--hot); }
+
+  .btn{
+    font-family:"Space Grotesk",system-ui,sans-serif; font-weight:700;
+    font-size:clamp(17px,5vw,21px); letter-spacing:.05em;
+    color:var(--ink); background:var(--cool);
+    border:none; border-radius:999px; padding:15px 42px;
+    cursor:pointer; box-shadow:0 8px 26px rgba(57,214,196,.4);
+    transition:transform .08s ease;
+  }
+  .btn:active{ transform:scale(.95); }
+  .hint{ font-size:12px; color:var(--muted); letter-spacing:.1em; }
+
+  .endgrade{ font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:clamp(72px,24vw,140px); line-height:.9; margin:0; }
+  .endline{ font-size:clamp(14px,4vw,18px); color:var(--text); }
+  .stats{ display:flex; gap:22px; justify-content:center; flex-wrap:wrap; }
+  .stat{ display:flex; flex-direction:column; gap:2px; }
+  .stat .v{ font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:clamp(26px,7vw,38px); }
+  .stat .l{ font-size:11px; color:var(--muted); letter-spacing:.14em; }
+  .gold{ color:var(--gold); } .cool{ color:var(--cool); }
+
+  #mute{
+    position:absolute; top:12px; right:12px; z-index:20;
+    width:42px; height:42px; border-radius:50%;
+    background:rgba(31,27,46,.7); border:1px solid var(--line);
+    color:var(--text); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <button id="mute" aria-label="ミュート">♪</button>
+
+  <div id="titleScreen" class="overlay">
+    <h1>鉄球</h1>
+    <div class="sub">IRON&nbsp;WRECKING&nbsp;BALL</div>
+    <div class="rules jp">
+      <b>長押し</b>で鎖をつかみ<span class="c">スイング</span>。<br>
+      <b>離す</b>と勢いで飛ぶ。次の天井をつかめ。<br>
+      <span class="h">サボテン</span>と落下に注意。<span class="c">距離</span>を稼げ。
+    </div>
+    <button id="startBtn" class="btn jp">はじめる</button>
+    <div class="hint jp">押している間スイング / 離して発射 ・ Space可</div>
+  </div>
+
+  <div id="endScreen" class="overlay hidden">
+    <h2 id="grade" class="endgrade cool">A</h2>
+    <div class="stats">
+      <div class="stat"><span id="dist" class="v gold">0</span><span class="l">DISTANCE (m)</span></div>
+      <div class="stat"><span id="best" class="v cool">0</span><span class="l">BEST (m)</span></div>
+      <div class="stat"><span id="long" class="v">0</span><span class="l">LONG SWING</span></div>
+    </div>
+    <div id="endline" class="endline jp">いい振りだった。</div>
+    <button id="againBtn" class="btn jp">もう一回</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const titleScreen = document.getElementById('titleScreen');
+const endScreen = document.getElementById('endScreen');
+const startBtn = document.getElementById('startBtn');
+const againBtn = document.getElementById('againBtn');
+const muteBtn = document.getElementById('mute');
+
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- sizing ----------
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2.5);
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = Math.round(W*DPR);
+  canvas.height = Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+// ---------- audio ----------
+let actx=null, muted=false, master=null;
+function initAudio(){
+  if(actx) { if(actx.state==='suspended') actx.resume(); return; }
+  try{
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    master = actx.createGain();
+    master.gain.value = 0.9;
+    master.connect(actx.destination);
+  }catch(e){ actx=null; }
+}
+function now(){ return actx?actx.currentTime:0; }
+function tone(freq, t0, dur, type, vol, slideTo){
+  if(!actx||muted) return;
+  try{
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(freq,t0);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(40,slideTo), t0+dur);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0+dur+0.02);
+  }catch(e){}
+}
+function noiseBurst(t0, dur, vol, lpStart, lpEnd){
+  if(!actx||muted) return;
+  try{
+    const len=Math.floor(actx.sampleRate*dur);
+    const buf=actx.createBuffer(1,len,actx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=actx.createBufferSource(); src.buffer=buf;
+    const lp=actx.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(lpStart,t0);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(80,lpEnd),t0+dur);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(vol,t0);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    src.connect(lp); lp.connect(g); g.connect(master); src.start(t0); src.stop(t0+dur+0.02);
+  }catch(e){}
+}
+const sfx={
+  attach(){ const t=now(); tone(880,t,0.10,'square',0.10,1320); tone(1760,t,0.06,'triangle',0.05); },
+  release(){ noiseBurst(now(),0.18,0.10,2400,600); },
+  coin(){ const t=now(); tone(880,t,0.08,'triangle',0.12); tone(1320,t+0.06,0.10,'triangle',0.12); tone(1760,t+0.13,0.12,'triangle',0.1); },
+  near(){ tone(1500,now(),0.05,'square',0.06,1800); },
+  crash(){ const t=now(); noiseBurst(t,0.5,0.28,1800,120); tone(320,t,0.55,'sawtooth',0.18,60); }
+};
+
+// ---------- world / physics ----------
+const G = 1500;            // gravity px/s^2
+const STATE = { TITLE:0, PLAY:1, DEAD:2 };
+let state = STATE.TITLE;
+
+let game = null;
+function newGame(){
+  return {
+    t:0,
+    scroll:0,            // world x offset (camera). ball stays near left-third
+    speedBase:150,       // base scroll speed px/s (escalates)
+    // ball physics in WORLD coords
+    bx:0, by:0, vx:0, vy:0,
+    anchored:false,
+    ax:0, ay:0,          // current anchor world pos
+    chainLen:0,
+    curAnchor:null,
+    anchors:[],          // {x,y, sparked}
+    hazards:[],          // {x, top:bool, h} cactus columns from floor
+    coins:[],            // {x,y,got}
+    nextAnchorX:0,
+    nextHazardX:0,
+    nextCoinX:0,
+    dist:0,
+    coinsGot:0,
+    mult:1,
+    multTimer:0,
+    longSwing:0,
+    swingStartX:0,
+    holding:false,
+    particles:[],
+    floatTexts:[],
+    shake:0,
+    dead:false,
+    trail:[],
+    glow:0
+  };
+}
+
+function floorY(){ return H - 36; }
+function ceilY(){ return 46; }
+
+// spawn helpers ------------------------------------------------------------
+function spawnInit(g){
+  // First anchor right above start, easy.
+  g.bx = W*0.32;
+  g.by = floorY()-220;
+  g.vx = g.speedBase;
+  g.vy = 0;
+  let ax = g.bx;
+  g.anchors.push({x:ax, y:ceilY(), sparked:false});
+  g.nextAnchorX = ax + 230;
+  g.nextHazardX = g.bx + 520;
+  g.nextCoinX = g.bx + 700;
+  // immediately attach to that anchor for instant action
+  attachTo(g, g.anchors[0]);
+}
+
+function difficulty(g){
+  // 0..1+ growing with distance
+  return Math.min(1, g.dist/700);
+}
+
+function ensureSpawns(g){
+  const viewRight = g.scroll + W + 400;
+  const d = difficulty(g);
+  // anchors
+  while(g.nextAnchorX < viewRight){
+    const gap = 210 - 70*d + (Math.random()*70-35);   // tighten over time but never impossible
+    const y = ceilY() + Math.random()*(40+50*d);
+    g.anchors.push({x:g.nextAnchorX, y:y, sparked:false});
+    g.nextAnchorX += Math.max(120, gap);
+  }
+  // hazards (cactus columns rising from floor)
+  while(g.nextHazardX < viewRight){
+    const baseGap = 360 - 120*d;
+    const spikeCount = 1 + Math.floor(Math.random()* (1 + Math.round(d*2)));
+    const w = spikeCount* (16);
+    const h = 60 + Math.random()*(60+90*d);
+    g.hazards.push({x:g.nextHazardX, w:w, h:h, n:spikeCount});
+    g.nextHazardX += Math.max(220, baseGap + Math.random()*180);
+  }
+  // coins (variable reward) — placed mid-air, sometimes
+  while(g.nextCoinX < viewRight){
+    if(Math.random()<0.7){
+      const y = ceilY()+120 + Math.random()*(H-ceilY()-260);
+      g.coins.push({x:g.nextCoinX, y:y, got:false, ph:Math.random()*6.28});
+    }
+    g.nextCoinX += 380 + Math.random()*340;
+  }
+  // cull behind
+  const cullLeft = g.scroll - 200;
+  g.anchors = g.anchors.filter(a=>a.x>cullLeft);
+  g.hazards = g.hazards.filter(h=>h.x+ (h.w||30) >cullLeft);
+  g.coins = g.coins.filter(c=>c.x>cullLeft && !c._dead);
+}
+
+// nearest reachable anchor ahead of / near ball ----------------------------
+const REACH = 260;
+function findAnchor(g){
+  let best=null, bestD=1e9;
+  for(const a of g.anchors){
+    const dx=a.x-g.bx, dy=a.y-g.by;
+    const dd=Math.hypot(dx,dy);
+    if(dd<=REACH){
+      // prefer anchors ahead-ish and above; weight slightly to forward
+      const score = dd - (dx>0? 30:0);
+      if(score<bestD){ bestD=score; best=a; }
+    }
+  }
+  return best;
+}
+
+function attachTo(g, a){
+  g.anchored=true; g.curAnchor=a;
+  g.ax=a.x; g.ay=a.y;
+  g.chainLen = Math.max(60, Math.hypot(g.bx-a.x, g.by-a.y));
+  g.swingStartX = g.bx;
+  if(!a.sparked){ a.sparked=true; }
+  spark(g, a.x-g.scroll, a.y);
+  sfx.attach();
+}
+
+function detach(g){
+  if(!g.anchored) return;
+  const swung = g.bx - g.swingStartX;
+  if(swung>g.longSwing) g.longSwing=swung;
+  g.anchored=false; g.curAnchor=null;
+  sfx.release();
+}
+
+// effects ------------------------------------------------------------------
+function spark(g,sx,sy){
+  if(reduceMotion){ return; }
+  for(let i=0;i<10;i++){
+    const a=Math.random()*6.28, sp=60+Math.random()*160;
+    g.particles.push({x:sx,y:sy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5,max:0.5,c:'#39d6c4',r:2});
+  }
+}
+function burst(g,sx,sy,col,n){
+  if(reduceMotion) n=Math.min(n,6);
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.28, sp=80+Math.random()*260;
+    g.particles.push({x:sx,y:sy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.7,max:0.7,c:col,r:2+Math.random()*3});
+  }
+}
+function floatText(g,sx,sy,txt,col){
+  g.floatTexts.push({x:sx,y:sy,txt,col,life:0.9,max:0.9});
+}
+
+// ---------- input ----------
+let keyHeld=false;
+function press(){
+  initAudio();
+  if(state===STATE.TITLE){ startGame(); return; }
+  if(state===STATE.DEAD){ return; }
+  if(state===STATE.PLAY){
+    game.holding=true;
+    if(!game.anchored){
+      const a=findAnchor(game);
+      if(a) attachTo(game,a);
+    }
+  }
+}
+function letgo(){
+  if(state===STATE.PLAY && game){
+    game.holding=false;
+    if(game.anchored) detach(game);
+  }
+}
+canvas.addEventListener('pointerdown',e=>{ e.preventDefault(); press(); }, {passive:false});
+canvas.addEventListener('pointerup',  e=>{ e.preventDefault(); letgo(); }, {passive:false});
+canvas.addEventListener('pointercancel',e=>{ letgo(); });
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); if(!keyHeld){ keyHeld=true; press(); } }
+});
+window.addEventListener('keyup',e=>{
+  if(e.code==='Space'){ e.preventDefault(); keyHeld=false; letgo(); }
+});
+
+startBtn.addEventListener('click', ()=>{ initAudio(); startGame(); });
+againBtn.addEventListener('click', ()=>{ initAudio(); startGame(); });
+muteBtn.addEventListener('click', ()=>{
+  muted=!muted; muteBtn.textContent = muted?'🔇':'♪';
+  muteBtn.style.color = muted?'var(--muted)':'var(--text)';
+});
+
+// ---------- high score ----------
+let best=0;
+try{ const v=localStorage.getItem('tekkyu_best'); if(v) best=parseInt(v,10)||0; }catch(e){}
+function saveBest(){ try{ localStorage.setItem('tekkyu_best', String(best)); }catch(e){} }
+
+// ---------- game flow ----------
+function startGame(){
+  game=newGame();
+  resize();
+  spawnInit(game);
+  state=STATE.PLAY;
+  titleScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  lastT=performance.now();
+}
+function die(){
+  if(game.dead) return;
+  game.dead=true;
+  state=STATE.DEAD;
+  sfx.crash();
+  burst(game, game.bx-game.scroll, game.by, '#ff5e5b', 34);
+  game.shake = reduceMotion?6:26;
+  const d=Math.floor(game.dist);
+  if(d>best){ best=d; saveBest(); }
+  setTimeout(showEnd, 850);
+}
+function showEnd(){
+  const d=Math.floor(game.dist);
+  const ls=Math.floor(game.longSwing);
+  document.getElementById('dist').textContent=d;
+  document.getElementById('best').textContent=best;
+  document.getElementById('long').textContent=ls;
+  let grade='C', line='まだ振り足りない。', col='var(--text)';
+  if(d>=600){ grade='S'; line='完璧な振り抜け。鉄球の化身。'; col='var(--gold)'; }
+  else if(d>=380){ grade='A'; line='いい振りだった。'; col='var(--cool)'; }
+  else if(d>=200){ grade='B'; line='悪くない。離すタイミングが鍵。'; col='var(--cool)'; }
+  else { grade='C'; line='まだ振り足りない。'; col='var(--text)'; }
+  const ge=document.getElementById('grade');
+  ge.textContent=grade; ge.style.color=col;
+  document.getElementById('endline').textContent=line;
+  endScreen.classList.remove('hidden');
+}
+
+// ---------- update ----------
+const FIXED=1/120;
+let acc=0, lastT=0;
+function update(dt){
+  const g=game;
+  g.t+=dt;
+  const d=difficulty(g);
+  const scrollSpeed = g.speedBase + 230*d;   // escalate
+
+  // multiplier decay
+  if(g.multTimer>0){ g.multTimer-=dt; if(g.multTimer<=0) g.mult=1; }
+
+  // physics integrate
+  if(g.anchored){
+    // velocity-based point mass constrained to chain (stick constraint) -> stable pendulum
+    g.vy += G*dt;
+    g.bx += g.vx*dt;
+    g.by += g.vy*dt;
+    // constrain to chain length
+    let dx=g.bx-g.ax, dy=g.by-g.ay;
+    let dl=Math.hypot(dx,dy)||0.0001;
+    if(dl>g.chainLen){
+      const nx=dx/dl, ny=dy/dl;
+      g.bx=g.ax+nx*g.chainLen;
+      g.by=g.ay+ny*g.chainLen;
+      // remove radial velocity component (keep tangential) -> real swing
+      const vr=g.vx*nx+g.vy*ny;
+      g.vx-=vr*nx; g.vy-=vr*ny;
+      // mild damping so it doesn't grow unbounded
+      g.vx*=0.999; g.vy*=0.999;
+    }
+  } else {
+    // free projectile
+    g.vy += G*dt;
+    g.bx += g.vx*dt;
+    g.by += g.vy*dt;
+    // auto-grab if holding and an anchor in reach (chain swings)
+    if(g.holding){
+      const a=findAnchor(g);
+      if(a) attachTo(g,a);
+    }
+  }
+
+  // keep forward drive: gently bias horizontal velocity toward scroll so player always advances
+  const targetVX = scrollSpeed;
+  if(g.vx<targetVX) g.vx += 40*dt*60* (1/60); // slow assist
+  // camera follows: keep ball near left third
+  const targetScroll = g.bx - W*0.32;
+  g.scroll += (targetScroll-g.scroll)* Math.min(1, 10*dt);
+  if(g.scroll<0) g.scroll=0;
+
+  // distance = world progress in "meters" (scaled)
+  g.dist = Math.max(g.dist, g.bx/40);
+
+  ensureSpawns(g);
+
+  // trail
+  g.trail.push({x:g.bx,y:g.by});
+  if(g.trail.length>14) g.trail.shift();
+
+  // coins
+  for(const c of g.coins){
+    if(c.got||c._dead) continue;
+    if(Math.hypot(c.x-g.bx, c.y-g.by) < 30){
+      c.got=true; c._dead=true; g.coinsGot++;
+      g.mult=Math.min(5, g.mult+1); g.multTimer=4;
+      burst(g, c.x-g.scroll, c.y, '#ffd166', reduceMotion?8:18);
+      floatText(g, c.x-g.scroll, c.y, '+コイン x'+g.mult, '#ffd166');
+      sfx.coin();
+    }
+  }
+
+  // hazards collision + near miss
+  const fy=floorY();
+  for(const hz of g.hazards){
+    const hzScreenX = hz.x; // world
+    // spike tip region
+    const left=hz.x, right=hz.x+hz.w, topY=fy-hz.h;
+    // ball collision (treat ball radius ~16)
+    if(g.bx> left-14 && g.bx< right+14 && g.by> topY-6){
+      die(); return;
+    }
+    // near miss: passed just above the tip while not collided
+    if(!hz.scored && g.bx>right+14 && g.bx<right+60){
+      const clearance = topY - g.by;
+      if(clearance>0 && clearance<70){
+        hz.scored=true;
+        g.mult=Math.min(5,g.mult+1); g.multTimer=4;
+        g.glow=0.5;
+        floatText(g, hz.x-g.scroll+10, topY-30, 'ナイス! x'+g.mult, '#39d6c4');
+        burst(g, hz.x-g.scroll+hz.w/2, topY, '#39d6c4', reduceMotion?5:12);
+        sfx.near();
+      } else if(clearance<=0){ hz.scored=true; }
+    } else if(!hz.scored && g.bx>right+60){ hz.scored=true; }
+  }
+
+  // floor / ceiling death
+  if(g.by> fy+10){ die(); return; }
+  if(g.by< -40){ g.by=-40; if(g.vy<0) g.vy=0; }
+
+  // particles
+  for(const p of g.particles){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=400*dt; p.life-=dt; }
+  g.particles=g.particles.filter(p=>p.life>0);
+  for(const f of g.floatTexts){ f.y-=30*dt; f.life-=dt; }
+  g.floatTexts=g.floatTexts.filter(f=>f.life>0);
+  if(g.shake>0){ g.shake*= Math.pow(0.001, dt); if(g.shake<0.4)g.shake=0; }
+  if(g.glow>0){ g.glow-=dt; if(g.glow<0)g.glow=0; }
+}
+
+// ---------- render ----------
+function draw(){
+  const g=game;
+  ctx.clearRect(0,0,W,H);
+
+  let sx=0, sy=0;
+  if(g && g.shake>0){ sx=(Math.random()*2-1)*g.shake; sy=(Math.random()*2-1)*g.shake; }
+  ctx.save();
+  ctx.translate(sx,sy);
+
+  // background parallax bands
+  ctx.fillStyle='rgba(50,44,69,0.25)';
+  if(g){
+    const off = -(g.scroll*0.3)% 160;
+    for(let x=off-160; x<W+160; x+=160){
+      ctx.fillRect(x, ceilY(), 2, H-ceilY());
+    }
+  }
+
+  if(g){
+    const fy=floorY();
+    // floor
+    ctx.fillStyle='#1f1b2e';
+    ctx.fillRect(0,fy,W,H-fy);
+    ctx.strokeStyle='#322c45'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,fy); ctx.lineTo(W,fy); ctx.stroke();
+    // ceiling rail
+    ctx.fillStyle='#1f1b2e'; ctx.fillRect(0,0,W,ceilY());
+    ctx.strokeStyle='#322c45'; ctx.beginPath(); ctx.moveTo(0,ceilY()); ctx.lineTo(W,ceilY()); ctx.stroke();
+
+    // hazards (cactus spikes)
+    for(const hz of g.hazards){
+      const x=hz.x-g.scroll;
+      if(x< -60 || x> W+60) continue;
+      const topY=fy-hz.h;
+      ctx.fillStyle='#ff5e5b';
+      const n=hz.n||1;
+      const sw=hz.w/n;
+      for(let i=0;i<n;i++){
+        const cx=x+i*sw+sw/2;
+        ctx.beginPath();
+        ctx.moveTo(cx-sw*0.5+2, fy);
+        ctx.lineTo(cx, topY);
+        ctx.lineTo(cx+sw*0.5-2, fy);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle='rgba(255,94,91,0.25)';
+      ctx.fillRect(x, topY, hz.w, 3);
+    }
+
+    // anchors (ceiling pivots)
+    for(const a of g.anchors){
+      const x=a.x-g.scroll;
+      if(x< -40 || x> W+40) continue;
+      const reachable = (g.curAnchor!==a) && Math.hypot(a.x-g.bx,a.y-g.by)<=REACH && !g.anchored;
+      ctx.beginPath();
+      ctx.arc(x, a.y, 7, 0, 6.2832);
+      ctx.fillStyle = (g.curAnchor===a)? '#ffd166' : (reachable? '#39d6c4':'#4a4566');
+      ctx.fill();
+      if(reachable && !reduceMotion){
+        ctx.beginPath(); ctx.arc(x,a.y, 12+Math.sin(g.t*6)*2, 0,6.2832);
+        ctx.strokeStyle='rgba(57,214,196,0.5)'; ctx.lineWidth=2; ctx.stroke();
+      }
+    }
+
+    // coins
+    for(const c of g.coins){
+      if(c.got||c._dead) continue;
+      const x=c.x-g.scroll;
+      if(x< -30 || x> W+30) continue;
+      const wob=Math.cos(g.t*3+c.ph);
+      ctx.save();
+      ctx.translate(x,c.y);
+      ctx.scale(Math.abs(wob)*0.7+0.3,1);
+      ctx.beginPath(); ctx.arc(0,0,12,0,6.2832);
+      ctx.fillStyle='#ffd166'; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle='#b8860b'; ctx.stroke();
+      ctx.restore();
+    }
+
+    // chain
+    const bxS=g.bx-g.scroll, byS=g.by;
+    if(g.anchored){
+      const axS=g.ax-g.scroll;
+      ctx.strokeStyle='#9aa0b5'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(axS,g.ay); ctx.lineTo(bxS,byS); ctx.stroke();
+      // chain links highlight
+      ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(axS,g.ay); ctx.lineTo(bxS,byS); ctx.stroke();
+    }
+
+    // trail
+    if(!reduceMotion){
+      for(let i=0;i<g.trail.length;i++){
+        const tp=g.trail[i];
+        const a=i/g.trail.length;
+        ctx.beginPath();
+        ctx.arc(tp.x-g.scroll, tp.y, 16*a*0.6, 0,6.2832);
+        ctx.fillStyle='rgba(57,214,196,'+(a*0.12)+')';
+        ctx.fill();
+      }
+    }
+
+    // the iron ball
+    const grd=ctx.createRadialGradient(bxS-5,byS-5,2,bxS,byS,17);
+    grd.addColorStop(0,'#cfe9e6'); grd.addColorStop(0.4,'#7d8aa0'); grd.addColorStop(1,'#3a4256');
+    ctx.beginPath(); ctx.arc(bxS,byS,16,0,6.2832);
+    ctx.fillStyle=grd; ctx.fill();
+    ctx.strokeStyle='#2a3040'; ctx.lineWidth=2; ctx.stroke();
+    // glint
+    ctx.beginPath(); ctx.arc(bxS-5,byS-6,3.2,0,6.2832);
+    ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fill();
+    if(g.glow>0){
+      ctx.beginPath(); ctx.arc(bxS,byS,16+ (1-g.glow)*18,0,6.2832);
+      ctx.strokeStyle='rgba(57,214,196,'+(g.glow*0.6)+')'; ctx.lineWidth=3; ctx.stroke();
+    }
+
+    // particles
+    for(const p of g.particles){
+      ctx.globalAlpha=Math.max(0,p.life/p.max);
+      ctx.fillStyle=p.c;
+      ctx.beginPath(); ctx.arc(p.x-g.scroll,p.y,p.r,0,6.2832); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // float texts
+    ctx.textAlign='center';
+    ctx.font='700 18px "Space Grotesk", system-ui, sans-serif';
+    for(const f of g.floatTexts){
+      ctx.globalAlpha=Math.max(0,f.life/f.max);
+      ctx.fillStyle=f.col;
+      ctx.fillText(f.txt, f.x, f.y);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  ctx.restore();
+
+  // HUD
+  if(g && state===STATE.PLAY){
+    ctx.textAlign='left';
+    ctx.fillStyle='var(--text)';
+    ctx.fillStyle='#f2ece4';
+    ctx.font='700 30px "Space Grotesk", system-ui, sans-serif';
+    ctx.fillText(Math.floor(g.dist)+' m', 16, 40);
+    if(g.mult>1){
+      ctx.fillStyle='#ffd166';
+      ctx.font='700 20px "Space Grotesk", system-ui, sans-serif';
+      ctx.fillText('x'+g.mult, 16, 66);
+    }
+    // best small
+    ctx.fillStyle='#8b86a0';
+    ctx.font='600 13px "Space Grotesk", system-ui, sans-serif';
+    ctx.textAlign='right';
+    ctx.fillText('BEST '+best+' m', W-16, 40);
+  }
+}
+
+// ---------- loop ----------
+function frame(t){
+  if(!lastT) lastT=t;
+  let dt=(t-lastT)/1000; lastT=t;
+  if(dt>0.05) dt=0.05;
+  if(state===STATE.PLAY || state===STATE.DEAD){
+    acc+=dt;
+    while(acc>=FIXED){
+      if(state===STATE.PLAY) update(FIXED);
+      else { // dead: keep particles/shake animating
+        deadAnim(FIXED);
+      }
+      acc-=FIXED;
+    }
+    draw();
+  }
+  requestAnimationFrame(frame);
+}
+function deadAnim(dt){
+  const g=game;
+  for(const p of g.particles){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=400*dt; p.life-=dt; }
+  g.particles=g.particles.filter(p=>p.life>0);
+  if(g.shake>0){ g.shake*=Math.pow(0.001,dt); if(g.shake<0.4)g.shake=0; }
+}
+
+resize();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
