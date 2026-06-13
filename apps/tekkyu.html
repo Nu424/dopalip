@@ -230,7 +230,7 @@ function spawnInit(g){
   // First anchor right above start, easy.
   g.bx = W*0.32;
   g.by = floorY()-220;
-  g.vx = g.speedBase;
+  g.vx = 420;          // 最初のスイングに十分な勢いを与える（speedBase だと振りが小さすぎる）
   g.vy = 0;
   let ax = g.bx;
   g.anchors.push({x:ax, y:ceilY(), sparked:false});
@@ -339,19 +339,10 @@ function press(){
   initAudio();
   if(state===STATE.TITLE){ startGame(); return; }
   if(state===STATE.DEAD){ return; }
-  if(state===STATE.PLAY){
-    game.holding=true;
-    if(!game.anchored){
-      const a=findAnchor(game);
-      if(a) attachTo(game,a);
-    }
-  }
+  if(state===STATE.PLAY){ game.holding=true; }   // 実際の掴み/離しは update() で holding に追従させる
 }
 function letgo(){
-  if(state===STATE.PLAY && game){
-    game.holding=false;
-    if(game.anchored) detach(game);
-  }
+  if(state===STATE.PLAY && game){ game.holding=false; }
 }
 canvas.addEventListener('pointerdown',e=>{ e.preventDefault(); press(); }, {passive:false});
 canvas.addEventListener('pointerup',  e=>{ e.preventDefault(); letgo(); }, {passive:false});
@@ -380,6 +371,7 @@ function startGame(){
   game=newGame();
   resize();
   spawnInit(game);
+  game.holding=true;   // 開始時から鎖につかまってスイング（最初の「離す」で発射）
   state=STATE.PLAY;
   titleScreen.classList.add('hidden');
   endScreen.classList.add('hidden');
@@ -425,6 +417,10 @@ function update(dt){
   // multiplier decay
   if(g.multTimer>0){ g.multTimer-=dt; if(g.multTimer<=0) g.mult=1; }
 
+  // 入力イベントではなく holding 状態で掴む/離すを駆動（取りこぼし防止）
+  if(g.holding && !g.anchored){ const a=findAnchor(g); if(a) attachTo(g,a); }
+  else if(!g.holding && g.anchored){ detach(g); }
+
   // physics integrate
   if(g.anchored){
     // velocity-based point mass constrained to chain (stick constraint) -> stable pendulum
@@ -449,16 +445,11 @@ function update(dt){
     g.vy += G*dt;
     g.bx += g.vx*dt;
     g.by += g.vy*dt;
-    // auto-grab if holding and an anchor in reach (chain swings)
-    if(g.holding){
-      const a=findAnchor(g);
-      if(a) attachTo(g,a);
-    }
   }
 
-  // keep forward drive: gently bias horizontal velocity toward scroll so player always advances
+  // 前進アシスト：飛行中だけ。anchored 中は振り子のエネルギーを汚さない（=その場でグルグル回らない）
   const targetVX = scrollSpeed;
-  if(g.vx<targetVX) g.vx += 40*dt*60* (1/60); // slow assist
+  if(!g.anchored && g.vx<targetVX) g.vx += 40*dt*60* (1/60); // slow assist
   // camera follows: keep ball near left third
   const targetScroll = g.bx - W*0.32;
   g.scroll += (targetScroll-g.scroll)* Math.min(1, 10*dt);
